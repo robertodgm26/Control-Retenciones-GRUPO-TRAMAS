@@ -6,6 +6,7 @@ from datetime import datetime
 import pandas as pd
 import plotly.graph_objects as go
 import requests
+from urllib.parse import parse_qs, urlparse
 import streamlit as st
 
 # ─────────────────────────────────────────────────────────────
@@ -86,6 +87,35 @@ def _token_compartido(url: str) -> str:
     return "u!" + b64
 
 
+def _es_xlsx(r) -> bool:
+    return r.status_code == 200 and r.content[:2] == b"PK"   # un .xlsx es un ZIP
+
+
+def _candidatos_descarga(url: str, url_final: str) -> list:
+    """Genera las URL de descarga directa posibles a partir del enlace compartido."""
+    cands = []
+    for base in dict.fromkeys([url, url_final]):          # original y ya resuelto
+        if base:
+            cands.append(f"https://api.onedrive.com/v1.0/shares/{_token_compartido(base)}/root/content")
+            cands.append(f"https://api.onedrive.com/v1.0/shares/{_token_compartido(base.split('#')[0])}/driveItem/content")
+
+    if url_final:
+        q = parse_qs(urlparse(url_final).query)
+        g = lambda k: (q.get(k) or [""])[0]
+        cid, resid, auth = g("cid"), g("resid") or g("id"), g("authkey")
+        if cid and resid:                                  # OneDrive personal (Outlook/Hotmail)
+            extra = f"&authkey={auth}" if auth else ""
+            cands.append(f"https://onedrive.live.com/download?cid={cid}&resid={resid}{extra}")
+        for viejo in ("/redir?", "/edit?", "/view.aspx?", "/embed?"):
+            if "onedrive.live.com" in url_final and viejo in url_final:
+                cands.append(url_final.replace(viejo, "/download?"))
+        sep = "&" if "?" in url_final else "?"
+        cands.append(f"{url_final}{sep}download=1")        # SharePoint / OneDrive empresarial
+    sep = "&" if "?" in url else "?"
+    cands.append(f"{url}{sep}download=1")
+    return list(dict.fromkeys(cands))
+
+
 @st.cache_data(ttl=TTL_SEGUNDOS, show_spinner="🔄 Leyendo el Excel actualizado desde OneDrive…")
 def descargar_excel(url: str, ruta_local: str):
     """Devuelve (bytes_del_xlsx, fecha_hora_de_lectura)."""
@@ -93,22 +123,32 @@ def descargar_excel(url: str, ruta_local: str):
         with open(ruta_local, "rb") as f:
             return f.read(), datetime.now()
 
+    url = url.strip().strip('"').strip("'")
     cabeceras = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-    intentos = [f"https://api.onedrive.com/v1.0/shares/{_token_compartido(url)}/root/content"]
-    if "onedrive.live.com" in url or "1drv.ms" in url or "sharepoint.com" in url:
-        sep = "&" if "?" in url else "?"
-        intentos.append(f"{url}{sep}download=1")
+    sesion = requests.Session()
+    diag = []
 
-    errores = []
-    for destino in intentos:
+    # 1) Resolver redirecciones (los enlaces 1drv.ms son cortos y redirigen a la URL real)
+    url_final = ""
+    try:
+        r0 = sesion.get(url, headers=cabeceras, timeout=60, allow_redirects=True)
+        url_final = r0.url
+        if _es_xlsx(r0):
+            return r0.content, datetime.now()
+        diag.append(f"enlace directo: HTTP {r0.status_code} · {r0.headers.get('content-type', '?')[:40]} · {urlparse(url_final).netloc}")
+    except requests.RequestException as e:
+        diag.append(f"enlace directo: {str(e)[:100]}")
+
+    # 2) Probar las variantes de descarga directa
+    for i, destino in enumerate(_candidatos_descarga(url, url_final), start=1):
         try:
-            r = requests.get(destino, headers=cabeceras, timeout=60, allow_redirects=True)
-            if r.status_code == 200 and r.content[:2] == b"PK":   # un .xlsx es un ZIP
+            r = sesion.get(destino, headers=cabeceras, timeout=60, allow_redirects=True)
+            if _es_xlsx(r):
                 return r.content, datetime.now()
-            errores.append(f"HTTP {r.status_code}")
+            diag.append(f"variante {i} ({urlparse(destino).netloc}): HTTP {r.status_code} · {r.headers.get('content-type', '?')[:30]}")
         except requests.RequestException as e:
-            errores.append(str(e)[:120])
-    raise RuntimeError(" | ".join(errores))
+            diag.append(f"variante {i}: {str(e)[:80]}")
+    raise RuntimeError("\n".join(diag))
 
 
 # ─────────────────────────────────────────────────────────────
@@ -200,7 +240,7 @@ try:
 except Exception as e:
     st.error(
         "❌ No se pudo leer el Excel desde OneDrive. Verifica que el enlace sea de tipo "
-        "**«Cualquier persona con el vínculo puede ver»**.\n\nDetalle técnico: " + str(e)
+        "**«Cualquier persona con el vínculo puede ver»**.\n\nDetalle técnico:\n\n```\n" + str(e) + "\n```"
     )
     st.stop()
 
@@ -308,9 +348,9 @@ def opacidad(traza: str, cliente: str) -> float:
         return 1.0 if traza == estatus_sel else ALFA_OPACO
     if cliente != c_sel:
         return ALFA_OPACO
-    if barra_sel:
-        return 1.0 if traza == e_sel else ALFA_OPACO
-    return 1.0
+    # Cliente seleccionado: solo queda viva la barra del estatus activo
+    # (fijado en la barra lateral o elegido con el clic en la barra azul/dorada)
+    return 1.0 if (e_sel is None or traza == e_sel) else ALFA_OPACO
 
 
 # ─────────────────────────────────────────────────────────────
