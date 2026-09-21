@@ -53,6 +53,9 @@ S = st.session_state
 S.setdefault("f_estatus", "TODOS")
 S.setdefault("f_mes", "TODOS")
 S.setdefault("f_semana", "TODOS")
+OPC_BARRA = "Cliente + estatus de la barra"
+OPC_CLIENTE = "Cliente completo (Pendientes y Recibidas)"
+S.setdefault("modo_clic", OPC_BARRA)
 S.setdefault("chart_ver", 0)   # Al cambiar, el gráfico se recrea y su selección se borra
 
 
@@ -333,7 +336,7 @@ if estado:
 barra_sel = False
 if estatus_sel != "TODOS":
     e_sel = estatus_sel                       # filtro lateral manda
-elif c_sel is not None and curva in (0, 1):
+elif c_sel is not None and curva in (0, 1) and S["modo_clic"] == OPC_BARRA:
     e_sel = "PENDIENTE" if curva == 0 else "RECIBIDA"   # clic en barra azul / dorada
     barra_sel = True
 else:
@@ -374,10 +377,14 @@ k3.markdown(f'<div class="kpi-box"><div class="kpi-title">Facturas Recibidas</di
 # ─────────────────────────────────────────────────────────────
 # GRÁFICO INTERACTIVO
 # ─────────────────────────────────────────────────────────────
-st.markdown('<div class="instruccion-click">👆 Haz clic en una barra para filtrar: '
-            'con estatus <b>TODOS</b>, la barra azul (Pendientes) o dorada (Recibidas) filtra cliente + estatus; '
-            'con un estatus fijado en la barra lateral, cualquier barra del cliente lo selecciona. '
+st.markdown('<div class="instruccion-click">👆 Haz clic en una barra del gráfico para filtrar. '
+            'Con un estatus fijado en la barra lateral, el clic selecciona el cliente en ese estatus. '
+            'Con <b>TODOS</b>, elige abajo qué debe mostrar el clic. '
             'Clic en un espacio vacío del gráfico o el botón superior para limpiar.</div>', unsafe_allow_html=True)
+
+if estatus_sel == "TODOS":
+    st.radio("Al hacer clic en una barra mostrar:", [OPC_BARRA, OPC_CLIENTE],
+             key="modo_clic", horizontal=True)
 
 clientes = [str(i) for i in pivot_grafico.index]
 col_p = [f"rgba({COLOR_P[0]},{COLOR_P[1]},{COLOR_P[2]},{opacidad('PENDIENTE', c)})" for c in clientes]
