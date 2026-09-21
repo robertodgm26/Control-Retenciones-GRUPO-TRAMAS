@@ -377,11 +377,6 @@ k3.markdown(f'<div class="kpi-box"><div class="kpi-title">Facturas Recibidas</di
 # ─────────────────────────────────────────────────────────────
 # GRÁFICO INTERACTIVO
 # ─────────────────────────────────────────────────────────────
-st.markdown('<div class="instruccion-click">👆 Haz clic en una barra del gráfico para filtrar. '
-            'Con un estatus fijado en la barra lateral, el clic selecciona el cliente en ese estatus. '
-            'Con <b>TODOS</b>, elige abajo qué debe mostrar el clic. '
-            'Clic en un espacio vacío del gráfico o el botón superior para limpiar.</div>', unsafe_allow_html=True)
-
 if estatus_sel == "TODOS":
     st.radio("Al hacer clic en una barra mostrar:", [OPC_BARRA, OPC_CLIENTE],
              key="modo_clic", horizontal=True)
@@ -413,6 +408,30 @@ fig.update_layout(
 
 st.plotly_chart(fig, width="stretch", on_select="rerun", selection_mode="points",
                 key=clave_grafico, config={"displayModeBar": False})
+
+st.markdown("""
+<div class="instruccion-click">
+<b>💡 Cómo usar el gráfico y los filtros</b><br><br>
+
+<b>1️⃣ Si la barra lateral está en «Condición / Estatus: TODOS»</b><br>
+&nbsp;&nbsp;• Haz clic en la <b>barra azul</b> (Pendientes) de un cliente → verás <b>solo las Pendientes</b> de ese cliente.<br>
+&nbsp;&nbsp;• Haz clic en la <b>barra dorada</b> (Recibidas) de un cliente → verás <b>solo las Recibidas</b> de ese cliente.<br>
+&nbsp;&nbsp;• Para ver <b>Pendientes y Recibidas juntas</b> de un cliente, elige primero la opción
+<i>«Cliente completo (Pendientes y Recibidas)»</i> que aparece arriba del gráfico y luego haz clic en cualquiera de sus barras.<br><br>
+
+<b>2️⃣ Si en la barra lateral eliges «PENDIENTE» o «RECIBIDA»</b><br>
+&nbsp;&nbsp;• El gráfico muestra todos los clientes que tienen facturas con ese estatus (la barra de ese estatus se ve resaltada).<br>
+&nbsp;&nbsp;• Haz clic en <b>cualquier barra</b> de un cliente → verás <b>solo las facturas de ese estatus</b> para ese cliente.<br><br>
+
+<b>3️⃣ ¿Qué se actualiza cuando seleccionas?</b><br>
+&nbsp;&nbsp;• Las barras seleccionadas mantienen su color; las demás se ven opacas.<br>
+&nbsp;&nbsp;• Cambian también los totales superiores, la <b>Matriz de Resumen</b> y el <b>Desglose de Auditoría</b>.<br><br>
+
+<b>4️⃣ Para quitar la selección</b><br>
+&nbsp;&nbsp;• Haz clic en un espacio vacío del gráfico, o pulsa el botón rojo <b>«Quitar Filtro de Clientes (Mostrar Todo)»</b>,
+que además regresa Estatus, Mes y Semana a «TODOS».
+</div>
+""", unsafe_allow_html=True)
 st.markdown("---")
 
 # ─────────────────────────────────────────────────────────────
